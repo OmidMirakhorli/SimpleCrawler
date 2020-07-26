@@ -5,14 +5,16 @@ from selenium.webdriver.support import expected_conditions as EC
 from queue import Queue
 from bs4 import BeautifulSoup
 import threading
+import sys
 import time
 import requests
 
 
 class AppAnyRun():
-    NUMBERTHREAD = 8
+    NUMBERTHREAD = 16
     BASE_URL = "https://app.any.run"
     Sub_URL = "https://app.any.run/submissions"
+    PRIVACY = 'https://app.any.run/privacy.html'
     tasks = set()
     soup = None
     md5s = set()
@@ -33,8 +35,8 @@ class AppAnyRun():
         }
         return headers
 
+
     def __init__(self):
-        print('constructor')
         driver = webdriver.Firefox(executable_path="C:/Users/omid/Desktop/geckodriver.exe", options=self.options)
         driver.get(self.Sub_URL)
         page = driver.page_source
@@ -43,72 +45,70 @@ class AppAnyRun():
             dd.write(page)
         driver.quit()
         self.soup = BeautifulSoup(page, 'html.parser')
-        self.insert2tasks(self.soup.find_all('a'))
-        print("const done")
+        rows = self.soup.find_all('div', {'class': 'history-table--content__row'})
+        self.insert2tasks(rows)
+
 
 
     def gatherLinks(self,tasks):
-        urls = set()
-        for link in tasks:
-            url = link.get('href')
-            print('link:{}'.format(url))
-            urls.add(url)
-        print("gatherlink done")
-        return urls
+            urls = set()
+            for l in tasks:
+                s = BeautifulSoup(l ,'html.parser')
+                if s.find('div',{'class':'label label-danger'}):
+                    urls.add(str(l))
+            return urls
+
+
 
     def fetch_md5(self,url):
-        print("fetch")
-        driver2 = webdriver.Firefox(executable_path="C:/Users/omid/Desktop/geckodriver.exe", options=self.options)
-        driver2.get(self.BASE_URL + url)
-        task_page = driver2.page_source
-        time.sleep(2)
-        tasksoup = BeautifulSoup(task_page, 'html.parser')
-        f = tasksoup.find('div', {'class': 'label label-danger'})
-        if f != None or "":
-            hash = tasksoup.find('div', {'class': 'descr descr--hash js-copy__md5'})
-            if hash:
-                print('md5:{}'.format(hash.get_text()))
-                self.md5s.add(hash.get_text())
-            else:
-                print("md5 doesnt exists")
-        else:
-            print("Not Malicious")
-        driver2.quit()
-        print("fetchdone")
 
+        f = BeautifulSoup(url,'html.parser')
+        strs = f.select_one(".hash__value")
+        self.md5s.add(strs.get_text())
+        '''
+        for j in strs:
+            print("++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++")
+            print(str(j))
+            print("++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++")
+            hash = BeautifulSoup(str(j),'html.parser')
+            hash.find('div',{'class':'hash__value'})
+            md5 = hash.get_text()
+            print(md5)
+            self.md5s.add(md5)
+        '''
 
     def creat_workers(self):
-        print('workers')
         for _ in range(self.NUMBERTHREAD):
             t = threading.Thread(target=self.work)
             t.daemon = True
             t.start()
 
+
     def work(self):
-        print('work')
         while True:
-            print("strt work")
             page = self.queue.get()
-            self.fetch_md5(page)
+            self.fetch_md5(str(page))
             self.queue.task_done()
 
+
     def create_jobs(self):
-        print('create jobs')
         f= self.gatherLinks(self.tasks)
         for link in f:
-            self.queue.put(link)
-        print("creatjob done")
+            self.queue.put(str(link))
 
         self.queue.join()
-        print("creatjob done")
+
 
 
     def insert2tasks(self,tasks):
         for task in tasks:
-            self.tasks.add(task)
-        print("inserttask done")
+            self.tasks.add(str(task))
 
 
+    def printmd5(self):
+        for md5 in self.md5s:
+            print(str(md5))
+        sys.stdout.flush()
 
     '''
     for link in urls:
@@ -155,4 +155,30 @@ class AppAnyRun():
         link = url.get_attribute('href')
         print(link)
         urls.add(link)
+        
+        
+         tasksoup = BeautifulSoup(task_page, 'html.parser')
+        f = tasksoup.find('div', {'class': 'label label-danger'})
+        if f != None or "":
+            hash = tasksoup.find('div', {'class': 'descr descr--hash js-copy__md5'})
+            if hash:
+                print('md5:{}'.format(hash.get_text()))
+                self.md5s.add(hash.get_text())
+            else:
+                print("md5 doesnt exists")
+        else:
+            print("Not Malicious")
+            
+            
+            
+            
+                   urls = set()
+        for link in tasks:
+            url = link.get('href')
+            if url == None or url == '/' or url == self.PRIVACY:
+                pass
+            else:
+                print('link:{}'.format(url))
+                urls.add(url)
+        
         '''
